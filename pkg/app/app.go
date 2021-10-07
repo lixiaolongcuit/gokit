@@ -1,43 +1,18 @@
 package app
 
 import (
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/lixiaolongcuit/gokit/pkg/grpcx"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
-
-type grpcServer struct {
-	grpcServer *grpc.Server
-	addr       string
-	tcpServer  net.Listener
-}
-
-func NewGrpcServer(server *grpc.Server, addr string) *grpcServer {
-	return &grpcServer{
-		grpcServer: server,
-		addr:       addr,
-	}
-}
-
-func (s *grpcServer) ListenAndServe() error {
-	tcpServer, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return err
-	}
-	if err := s.grpcServer.Serve(tcpServer); err != nil {
-		return err
-	}
-	return nil
-}
 
 type Option func(app *App)
 
-func GrpcServer(server *grpcServer) Option {
+func GrpcServer(server *grpcx.Server) Option {
 	return func(app *App) { app.grpcServer = server }
 }
 
@@ -60,7 +35,7 @@ func NewApp(log *logrus.Entry, opts ...Option) *App {
 }
 
 type App struct {
-	grpcServer        *grpcServer
+	grpcServer        *grpcx.Server
 	grpcGatewayServer *http.Server
 	prometheusServer  *http.Server
 	log               *logrus.Entry
@@ -109,7 +84,7 @@ func (app *App) Run() {
 		app.log.Errorf("server error: %+v", err)
 	}
 	if app.grpcServer != nil {
-		if err := app.grpcServer.tcpServer.Close(); err != nil {
+		if err := app.grpcServer.Close(); err != nil {
 			app.log.Errorf("close grpc server error: %+v", err)
 		}
 	}
