@@ -16,8 +16,8 @@ func GrpcServer(server *grpcx.Server) Option {
 	return func(app *App) { app.grpcServer = server }
 }
 
-func GrpcGatewayServer(server *http.Server) Option {
-	return func(app *App) { app.grpcGatewayServer = server }
+func GrpcGatewayServerCreater(creater func() (*http.Server, error)) Option {
+	return func(app *App) { app.grpcGatewayServerCreater = creater }
 }
 
 func PrometheusServer(server *http.Server) Option {
@@ -35,10 +35,11 @@ func NewApp(log *logrus.Entry, opts ...Option) *App {
 }
 
 type App struct {
-	grpcServer        *grpcx.Server
-	grpcGatewayServer *http.Server
-	prometheusServer  *http.Server
-	log               *logrus.Entry
+	grpcServer               *grpcx.Server
+	grpcGatewayServer        *http.Server
+	grpcGatewayServerCreater func() (*http.Server, error)
+	prometheusServer         *http.Server
+	log                      *logrus.Entry
 }
 
 func (app *App) Run() {
@@ -53,8 +54,14 @@ func (app *App) Run() {
 		}(errChan)
 	}
 	//启动grpc-gateway
-	if app.grpcGatewayServer != nil {
+	if app.grpcGatewayServerCreater != nil {
 		go func(errChan chan<- error) {
+			var err error
+			app.grpcGatewayServer, err = app.grpcGatewayServerCreater()
+			if err != nil {
+				errChan <- err
+				return
+			}
 			if err := app.grpcGatewayServer.ListenAndServe(); err != nil {
 				if err != nil {
 					errChan <- err
